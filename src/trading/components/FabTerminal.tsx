@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent, ReactNode } from 'react'
+import RGL, { WidthProvider } from 'react-grid-layout/legacy'
+import type { Layout as RGLLayout, LayoutItem as RGLLayoutItem } from 'react-grid-layout/legacy'
+import 'react-grid-layout/css/styles.css'
+import 'react-resizable/css/styles.css'
 import { sendToBoard } from '../popout'
 import { usePrices, useLiveSymbols } from '../simData'
 import { Panel, Button, Badge, SegmentedTabs, Drawer } from './ui'
@@ -1294,11 +1298,9 @@ function TickerTape({ tick }: { tick: number }) {
   )
 }
 
-// ── Drag-to-reorder layout ───────────────────────────────────────────────────
-// Each top-level grid panel is described by a stable id, its default numeric
-// column span and a render fn returning the EXISTING panel component
-// (props/behaviour unchanged). The user can drag the ⠿ grip to reorder and drag
-// the right edge to resize; both order and per-panel spans are persisted.
+// ── Layout engine (react-grid-layout) ────────────────────────────────────────
+// Panels are positioned on an explicit x/y grid. The broker can freely drag any
+// panel to any position and resize it from any edge — no automatic reshuffling.
 
 type PanelId =
   | 'indices' | 'hero' | 'orderbook' | 'breadth' | 'sector'
@@ -1306,269 +1308,77 @@ type PanelId =
 
 interface PanelDef {
   id: PanelId
-  defaultSpan: number
   render: () => ReactNode
 }
 
-const LAYOUT_KEY = 'fab-terminal-layout-v5'
+const LAYOUT_KEY = 'fab-terminal-layout-v6'
+const GRID_COLS = 12
+const GRID_ROW_H = 80
 
-/** Min / max column span a panel may occupy. Min 2/12 lets panels pack tighter. */
-const MIN_SPAN = 2
-const MAX_SPAN = 12
-const clampSpan = (n: number) => Math.max(MIN_SPAN, Math.min(MAX_SPAN, n))
-
-/** Min / max row span. Each row unit = 80px (+ 12px gap between units). */
-const MIN_ROWS = 2
-const MAX_ROWS = 20
-const ROW_UNIT = 92 // px per row unit (80px row + 12px gap) — used for drag-resize maths
-const clampRows = (n: number) => Math.max(MIN_ROWS, Math.min(MAX_ROWS, n))
-
-/**
- * Default order. News is prioritised into the top row (right of the hero) so
- * it sits in the main viewport instead of being buried at the bottom. Every row
- * sums to exactly 12 columns so the grid tiles with no empty gaps:
- *   row1  indices(3) + hero(6) + news(3)        = 12
- *   row2  breadth(4) + sector(4) + movers(4)    = 12
- *   row3  orderbook(3) + watchlist(3) + mostactive(6) = 12
- *   row4  timesales(12)                          = 12
- */
-const DEFAULT_ORDER: PanelId[] = [
-  'indices', 'hero', 'news',
-  'breadth', 'sector', 'movers',
-  'orderbook', 'watchlist', 'mostactive',
-  'timesales',
+const ALL_PANEL_IDS: PanelId[] = [
+  'indices', 'hero', 'orderbook', 'breadth', 'sector',
+  'movers', 'watchlist', 'mostactive', 'news', 'timesales',
 ]
 
-/** Default width (column span) per panel. */
-const DEFAULT_SPANS: Record<PanelId, number> = {
-  indices: 3, hero: 6, orderbook: 3,
-  breadth: 4, sector: 4, movers: 4,
-  watchlist: 3, mostactive: 6, news: 3,
-  timesales: 12,
-}
+// Default layout:
+//   Row 0 (y=0):  Indices(3) · Hero(6) · Orderbook(3)
+//   Col 0 (y=3):  Sector(3) fills blank space below Indices (which is only 3 rows)
+//   Row 1 (y=8):  Breadth(6) · Movers(6)
+//   Row 2 (y=12): Watchlist(3) · MostActive(6) · News(3)
+//   Row 3 (y=18): Time & Sales(12)
+const DEFAULT_GRID_LAYOUT: RGLLayoutItem[] = [
+  { i: 'indices',    x: 0,  y: 0,  w: 3,  h: 3,  minW: 2, minH: 2 },
+  { i: 'hero',       x: 3,  y: 0,  w: 6,  h: 8,  minW: 2, minH: 2 },
+  { i: 'orderbook',  x: 9,  y: 0,  w: 3,  h: 6,  minW: 2, minH: 2 },
+  { i: 'sector',     x: 0,  y: 3,  w: 3,  h: 5,  minW: 2, minH: 2 },
+  { i: 'breadth',    x: 0,  y: 8,  w: 6,  h: 4,  minW: 2, minH: 2 },
+  { i: 'movers',     x: 6,  y: 8,  w: 6,  h: 4,  minW: 2, minH: 2 },
+  { i: 'watchlist',  x: 0,  y: 12, w: 3,  h: 5,  minW: 2, minH: 2 },
+  { i: 'mostactive', x: 3,  y: 12, w: 6,  h: 6,  minW: 2, minH: 2 },
+  { i: 'news',       x: 9,  y: 12, w: 3,  h: 5,  minW: 2, minH: 2 },
+  { i: 'timesales',  x: 0,  y: 18, w: 12, h: 3,  minW: 2, minH: 2 },
+]
 
-/** Default height (row span) per panel. */
-const DEFAULT_HEIGHTS: Record<PanelId, number> = {
-  indices: 4, hero: 8, orderbook: 6,
-  breadth: 4, sector: 5, movers: 4,
-  watchlist: 5, mostactive: 6, news: 5,
-  timesales: 3,
-}
-
-interface Layout {
-  order: PanelId[]
-  spans: Record<PanelId, number>
-  heights: Record<PanelId, number>
-}
-
-const defaultLayout = (): Layout => ({
-  order: DEFAULT_ORDER.slice(),
-  spans: { ...DEFAULT_SPANS },
-  heights: { ...DEFAULT_HEIGHTS },
-})
-
-function isValidOrder(value: unknown): value is PanelId[] {
-  if (!Array.isArray(value) || value.length !== DEFAULT_ORDER.length) return false
-  const ids = new Set<string>(DEFAULT_ORDER)
-  const seen = new Set<string>()
-  for (const v of value) {
-    if (typeof v !== 'string' || !ids.has(v) || seen.has(v)) return false
-    seen.add(v)
-  }
-  return true
-}
-
-function isValidSpans(value: unknown): value is Record<PanelId, number> {
-  if (typeof value !== 'object' || value === null) return false
-  const rec = value as Record<string, unknown>
-  for (const id of DEFAULT_ORDER) {
-    const n = rec[id]
-    if (typeof n !== 'number' || !Number.isInteger(n) || n < MIN_SPAN || n > MAX_SPAN) return false
-  }
-  return true
-}
-
-function isValidHeights(value: unknown): value is Record<PanelId, number> {
-  if (typeof value !== 'object' || value === null) return false
-  const rec = value as Record<string, unknown>
-  for (const id of DEFAULT_ORDER) {
-    const n = rec[id]
-    if (typeof n !== 'number' || !Number.isInteger(n) || n < MIN_ROWS || n > MAX_ROWS) return false
-  }
-  return true
-}
-
-/** Read+validate a persisted layout; fall back to defaults if missing/invalid. */
-function loadLayout(): Layout {
+function loadGridLayout(): RGLLayoutItem[] {
   try {
     const raw = localStorage.getItem(LAYOUT_KEY)
-    if (!raw) return defaultLayout()
+    if (!raw) return DEFAULT_GRID_LAYOUT
     const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null) return defaultLayout()
-    const { order, spans, heights } = parsed as { order?: unknown; spans?: unknown; heights?: unknown }
-    if (!isValidOrder(order) || !isValidSpans(spans)) return defaultLayout()
-    return { order, spans, heights: isValidHeights(heights) ? heights : { ...DEFAULT_HEIGHTS } }
+    if (!Array.isArray(parsed)) return DEFAULT_GRID_LAYOUT
+    return parsed as RGLLayoutItem[]
   } catch {
-    return defaultLayout()
+    return DEFAULT_GRID_LAYOUT
   }
 }
 
-// ── Draggable + resizable wrapper ──────────────────────────────────────────
-function DraggablePanel({
+const TerminalGrid = WidthProvider(RGL)
+
+// ── Panel card wrapper ────────────────────────────────────────────────────────
+// Thin wrapper providing the drag handle strip and panel controls (hide, send to
+// board). react-grid-layout owns all drag + resize; this only renders the chrome.
+function PanelCard({
   id,
-  span,
-  rows,
-  draggingId,
-  overId,
-  onDragStartPanel,
-  onDragOverPanel,
-  onDropPanel,
-  onDragEndPanel,
-  onResizeSpan,
-  onResizeRows,
-  onToggleFullWidth,
   onTearOut,
   onHide,
   highlight,
   children,
 }: {
   id: PanelId
-  span: number
-  rows: number
-  draggingId: PanelId | null
-  overId: PanelId | null
-  onDragStartPanel: (id: PanelId) => void
-  onDragOverPanel: (id: PanelId) => void
-  onDropPanel: (id: PanelId) => void
-  onDragEndPanel: () => void
-  onResizeSpan: (id: PanelId, span: number) => void
-  onResizeRows: (id: PanelId, rows: number) => void
-  onToggleFullWidth: (id: PanelId) => void
-  onTearOut?: (id: PanelId, screenX?: number, screenY?: number) => void
+  onTearOut?: (id: PanelId) => void
   onHide?: (id: PanelId) => void
   highlight?: boolean
   children: ReactNode
 }) {
-  const [resizing, setResizing] = useState(false)
-  const [resizingRow, setResizingRow] = useState(false)
-  const wrapperRef = useRef<HTMLDivElement>(null)
-  const draggingRef = useRef(false)
-  const downRef = useRef<{ x: number; y: number } | null>(null)
-  const resizeRef = useRef<{ startX: number; startSpan: number; unit: number } | null>(null)
-  const resizeRowRef = useRef<{ startY: number; startRows: number } | null>(null)
-  const isDragging = draggingId === id
-  const isOver = overId === id && draggingId !== null && draggingId !== id
-
-  const beginResize = (e: PointerEvent<HTMLDivElement>) => {
-    e.stopPropagation()
-    e.preventDefault()
-    const el = wrapperRef.current
-    if (!el) return
-    const width = el.getBoundingClientRect().width
-    e.currentTarget.setPointerCapture(e.pointerId)
-    resizeRef.current = { startX: e.clientX, startSpan: span, unit: width / span }
-    setResizing(true)
-  }
-
-  const moveResize = (e: PointerEvent<HTMLDivElement>) => {
-    const ctx = resizeRef.current
-    if (!ctx || !resizing) return
-    const deltaCols = Math.round((e.clientX - ctx.startX) / ctx.unit)
-    const next = clampSpan(ctx.startSpan + deltaCols)
-    if (next !== span) onResizeSpan(id, next)
-  }
-
-  const endResize = (e: PointerEvent<HTMLDivElement>) => {
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId)
-    }
-    resizeRef.current = null
-    setResizing(false)
-  }
-
-  const beginRowResize = (e: PointerEvent<HTMLDivElement>) => {
-    e.stopPropagation()
-    e.preventDefault()
-    e.currentTarget.setPointerCapture(e.pointerId)
-    resizeRowRef.current = { startY: e.clientY, startRows: rows }
-    setResizingRow(true)
-  }
-
-  const moveRowResize = (e: PointerEvent<HTMLDivElement>) => {
-    const ctx = resizeRowRef.current
-    if (!ctx || !resizingRow) return
-    const deltaRows = Math.round((e.clientY - ctx.startY) / ROW_UNIT)
-    const next = clampRows(ctx.startRows + deltaRows)
-    if (next !== rows) onResizeRows(id, next)
-  }
-
-  const endRowResize = (e: PointerEvent<HTMLDivElement>) => {
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId)
-    }
-    resizeRowRef.current = null
-    setResizingRow(false)
-  }
-
   return (
     <div
-      ref={wrapperRef}
       data-panel-id={id}
-      style={{ gridColumn: `span ${span} / span ${span}`, gridRow: `span ${rows} / span ${rows}` }}
-      className={`group relative isolate [&>section]:h-full transition-shadow ${isDragging ? 'opacity-50' : ''} ${
-        isOver ? 'rounded-xl ring-2 ring-action/70' : ''
-      } ${highlight ? 'rounded-xl ring-2 ring-action shadow-[0_0_0_4px_rgba(0,98,255,0.25)]' : ''}`}
+      className={`group relative isolate h-full w-full [&>section]:h-full ${
+        highlight ? 'rounded-xl ring-2 ring-action shadow-[0_0_0_4px_rgba(0,98,255,0.25)]' : ''
+      }`}
     >
-      {/* Drag the title bar to reorder (drag off the window to pop out). Sits
-          under the header actions (z-20) so those stay clickable. Uses pointer
-          events (not HTML5 drag) so it works reliably in macOS WebView. */}
-      <div
-        onPointerDown={(e: PointerEvent<HTMLDivElement>) => {
-          if (e.button !== 0) return
-          downRef.current = { x: e.clientX, y: e.clientY }
-          e.currentTarget.setPointerCapture(e.pointerId)
-        }}
-        onPointerMove={(e: PointerEvent<HTMLDivElement>) => {
-          const d = downRef.current
-          if (!d) return
-          // Only begin the drag past a small threshold so a plain click doesn't flicker.
-          if (!draggingRef.current) {
-            if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) < 5) return
-            draggingRef.current = true
-            document.body.style.userSelect = 'none'
-            onDragStartPanel(id)
-          }
-          const over = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)
-            ?.closest('[data-panel-id]')?.getAttribute('data-panel-id') as PanelId | null
-          if (over) onDragOverPanel(over)
-        }}
-        onPointerUp={(e: PointerEvent<HTMLDivElement>) => {
-          const wasDragging = draggingRef.current
-          draggingRef.current = false
-          downRef.current = null
-          document.body.style.userSelect = ''
-          if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
-          if (!wasDragging) return // plain click, not a drag
-          // Released outside this window → tear the panel off to the board.
-          // Use clientX/Y vs innerWidth/Height instead of screenX/Y because
-          // macOS WKWebView reports screenX/Y in a different coordinate origin
-          // (bottom-left) than Windows (top-left), causing false "outside" hits.
-          const outside =
-            e.clientX < 0 ||
-            e.clientX > window.innerWidth ||
-            e.clientY < 0 ||
-            e.clientY > window.innerHeight
-          if (outside) { onTearOut?.(id, e.screenX, e.screenY); onDragEndPanel(); return }
-          const over = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)
-            ?.closest('[data-panel-id]')?.getAttribute('data-panel-id') as PanelId | null
-          if (over) onDropPanel(over)
-          else onDragEndPanel()
-        }}
-        onPointerCancel={() => { draggingRef.current = false; downRef.current = null; document.body.style.userSelect = ''; onDragEndPanel() }}
-        title="Drag the header to move · drag off the window to pop out"
-        className="absolute left-0 right-0 top-0 z-10 h-11 cursor-move touch-none"
-      />
-      {/* Hide + send-to-board as a bordered button group (detailed-view style). */}
+      {/* Drag handle — RGL intercepts pointer events on this class. */}
+      <div className="fab-panel-handle absolute left-0 right-14 top-0 z-10 h-11 cursor-move touch-none" title="Drag to move" />
+      {/* Hide + send-to-board buttons. */}
       <div className="absolute right-1.5 top-0 z-30 flex h-11 items-center">
         <div className="flex items-center gap-0.5 rounded-md border border-border-dark bg-[#1a1c1e] px-0.5 py-0.5 shadow-sm">
           <button
@@ -1592,50 +1402,6 @@ function DraggablePanel({
         </div>
       </div>
       {children}
-      {/* Width indicator (only while actively resizing width). */}
-      {resizing && (
-        <span className="pointer-events-none absolute right-3 top-1/2 z-30 -translate-y-1/2 rounded bg-action/90 px-1.5 py-0.5 text-[10px] font-medium leading-none tabular-nums text-white shadow">
-          {span}/12
-        </span>
-      )}
-      {/* Height indicator (only while actively resizing height). */}
-      {resizingRow && (
-        <span className="pointer-events-none absolute bottom-4 left-1/2 z-30 -translate-x-1/2 rounded bg-action/90 px-1.5 py-0.5 text-[10px] font-medium leading-none tabular-nums text-white shadow">
-          {rows} rows
-        </span>
-      )}
-      {/* Vertical resize handle on the right edge. Double-click toggles full width. */}
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize panel width"
-        title="Drag to resize · double-click for full width"
-        onPointerDown={beginResize}
-        onPointerMove={moveResize}
-        onPointerUp={endResize}
-        onLostPointerCapture={endResize}
-        onDoubleClick={(e) => {
-          e.stopPropagation()
-          onToggleFullWidth(id)
-        }}
-        className={`absolute right-0 top-0 z-20 h-full w-1.5 cursor-col-resize transition-colors ${
-          resizing ? 'bg-action' : 'bg-transparent group-hover:bg-[rgba(255,255,255,0.12)] hover:!bg-action/70'
-        }`}
-      />
-      {/* Horizontal resize handle on the bottom edge. */}
-      <div
-        role="separator"
-        aria-orientation="horizontal"
-        aria-label="Resize panel height"
-        title="Drag to resize height"
-        onPointerDown={beginRowResize}
-        onPointerMove={moveRowResize}
-        onPointerUp={endRowResize}
-        onLostPointerCapture={endRowResize}
-        className={`absolute bottom-0 left-0 z-20 h-1.5 w-full cursor-row-resize transition-colors ${
-          resizingRow ? 'bg-action' : 'bg-transparent group-hover:bg-[rgba(255,255,255,0.12)] hover:!bg-action/70'
-        }`}
-      />
     </div>
   )
 }
@@ -1807,14 +1573,7 @@ export default function FabTerminal({ onTrade, onBrokerFlow, onOrderAI, market =
   const marketIndexList = useMemo(() => indicesForMarket(market), [market])
   const marketWatchRows = useMemo(() => watchlistForMarket(market), [market])
 
-  const initialLayout = useMemo(() => loadLayout(), [])
-  const [order, setOrder] = useState<PanelId[]>(initialLayout.order)
-  const [spans, setSpans] = useState<Record<PanelId, number>>(initialLayout.spans)
-  const [heights, setHeights] = useState<Record<PanelId, number>>(initialLayout.heights)
-  const [draggingId, setDraggingId] = useState<PanelId | null>(null)
-  const [overId, setOverId] = useState<PanelId | null>(null)
-  // Remembers each panel's pre-full-width span so double-click can toggle back.
-  const prevSpanRef = useRef<Partial<Record<PanelId, number>>>({})
+  const [gridLayout, setGridLayout] = useState<RGLLayoutItem[]>(() => loadGridLayout())
 
   // ── Hotkeys (F1–F10) ──────────────────────────────────────────────────────
   const [helpOpen, setHelpOpen] = useState(false)
@@ -1827,80 +1586,39 @@ export default function FabTerminal({ onTrade, onBrokerFlow, onOrderAI, market =
   // looks share one workspace board. The panel also stays in the graph.
   const popOut = (id: PanelId) => { void sendToBoard(id) }
 
-  // Persist order, spans, and heights together.
   useEffect(() => {
-    try {
-      localStorage.setItem(LAYOUT_KEY, JSON.stringify({ order, spans, heights }))
-    } catch {
-      /* ignore quota/availability errors */
-    }
-  }, [order, spans, heights])
+    try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(gridLayout)) } catch { /* ignore */ }
+  }, [gridLayout])
 
   // Panel registry — keeps each panel's existing props/behaviour identical.
   const panels: Record<PanelId, PanelDef> = useMemo(
     () => ({
-      indices: { id: 'indices', defaultSpan: 3, render: () => <IndicesPanel tick={tick} indices={marketIndexList} /> },
-      hero: { id: 'hero', defaultSpan: 6, render: () => <HeroPanel sym={selected} onTrade={onTrade} tick={tick} /> },
-      orderbook: { id: 'orderbook', defaultSpan: 3, render: () => <OrderBookPanel short={selected.symbolShortName} tick={tick} /> },
-      breadth: { id: 'breadth', defaultSpan: 4, render: () => <BreadthPanel tick={tick} symbols={marketSymbolList} /> },
-      sector: { id: 'sector', defaultSpan: 4, render: () => <SectorPanel symbols={marketSymbolList} /> },
-      movers: { id: 'movers', defaultSpan: 4, render: () => <MoversPanel onSelect={setSelected} onTrade={onTrade} symbols={marketSymbolList} /> },
-      watchlist: { id: 'watchlist', defaultSpan: 3, render: () => <WatchlistPanel selected={selected} onSelect={setSelected} onTrade={onTrade} symbols={marketWatchRows} /> },
-      mostactive: { id: 'mostactive', defaultSpan: 6, render: () => <MostActivePanel onSelect={setSelected} onTrade={onTrade} symbols={marketSymbolList} /> },
-      news: { id: 'news', defaultSpan: 3, render: () => <NewsPanel selected={selected} onOpen={setNewsItem} /> },
-      timesales: { id: 'timesales', defaultSpan: 12, render: () => <TimeSalesPanel short={selected.symbolShortName} /> },
+      indices:    { id: 'indices',    render: () => <IndicesPanel tick={tick} indices={marketIndexList} /> },
+      hero:       { id: 'hero',       render: () => <HeroPanel sym={selected} onTrade={onTrade} tick={tick} /> },
+      orderbook:  { id: 'orderbook',  render: () => <OrderBookPanel short={selected.symbolShortName} tick={tick} /> },
+      breadth:    { id: 'breadth',    render: () => <BreadthPanel tick={tick} symbols={marketSymbolList} /> },
+      sector:     { id: 'sector',     render: () => <SectorPanel symbols={marketSymbolList} /> },
+      movers:     { id: 'movers',     render: () => <MoversPanel onSelect={setSelected} onTrade={onTrade} symbols={marketSymbolList} /> },
+      watchlist:  { id: 'watchlist',  render: () => <WatchlistPanel selected={selected} onSelect={setSelected} onTrade={onTrade} symbols={marketWatchRows} /> },
+      mostactive: { id: 'mostactive', render: () => <MostActivePanel onSelect={setSelected} onTrade={onTrade} symbols={marketSymbolList} /> },
+      news:       { id: 'news',       render: () => <NewsPanel selected={selected} onOpen={setNewsItem} /> },
+      timesales:  { id: 'timesales',  render: () => <TimeSalesPanel short={selected.symbolShortName} /> },
     }),
     [selected, onTrade, tick, marketSymbolList, marketIndexList, marketWatchRows],
   )
 
-  const handleDrop = (targetId: PanelId) => {
-    setOrder((prev) => {
-      if (draggingId === null || draggingId === targetId) return prev
-      const next = prev.filter((pid) => pid !== draggingId)
-      const idx = next.indexOf(targetId)
-      next.splice(idx, 0, draggingId)
-      return next
-    })
-    setDraggingId(null)
-    setOverId(null)
-  }
-
-  const handleResizeSpan = (id: PanelId, span: number) => {
-    setSpans((prev) => (prev[id] === span ? prev : { ...prev, [id]: clampSpan(span) }))
-  }
-
-  const handleResizeRows = (id: PanelId, rows: number) => {
-    setHeights((prev) => (prev[id] === rows ? prev : { ...prev, [id]: clampRows(rows) }))
-  }
-
-  const handleToggleFullWidth = (id: PanelId) => {
-    setSpans((prev) => {
-      if (prev[id] !== MAX_SPAN) {
-        prevSpanRef.current[id] = prev[id]
-        return { ...prev, [id]: MAX_SPAN }
-      }
-      const restored = prevSpanRef.current[id] ?? DEFAULT_SPANS[id]
-      return { ...prev, [id]: clampSpan(restored) }
-    })
-  }
-
   const resetLayout = () => {
-    const fresh = defaultLayout()
-    setOrder(fresh.order)
-    setSpans(fresh.spans)
-    setHeights(fresh.heights)
-    prevSpanRef.current = {}
-    try {
-      localStorage.removeItem(LAYOUT_KEY)
-    } catch {
-      /* ignore */
-    }
+    setGridLayout(DEFAULT_GRID_LAYOUT)
+    try { localStorage.removeItem(LAYOUT_KEY) } catch { /* ignore */ }
   }
 
-  // Hide a panel (remove from the grid) / bring a hidden one back.
-  const handleHide = (id: PanelId) => setOrder((prev) => prev.filter((x) => x !== id))
-  const handleShow = (id: PanelId) => setOrder((prev) => (prev.includes(id) ? prev : [...prev, id]))
-  const hiddenPanels = DEFAULT_ORDER.filter((id) => !order.includes(id))
+  const handleHide = (id: PanelId) => setGridLayout((prev) => prev.filter((item) => item.i !== id))
+  const handleShow = (id: PanelId) => {
+    if (gridLayout.some((item) => item.i === id)) return
+    const def = DEFAULT_GRID_LAYOUT.find((item) => item.i === id)
+    setGridLayout((prev) => [...prev, { ...(def ?? { i: id, x: 0, w: 4, h: 4, minW: 2, minH: 2 }), y: Infinity }])
+  }
+  const hiddenPanels = ALL_PANEL_IDS.filter((id) => !gridLayout.some((item) => item.i === id))
 
   // Scroll a panel into view and flash a ring around it for ~1.4s.
   const focusPanel = (id: PanelId) => {
@@ -1939,45 +1657,44 @@ export default function FabTerminal({ onTrade, onBrokerFlow, onOrderAI, market =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, helpOpen])
 
-  const orderCustomized = order.some((id, i) => id !== DEFAULT_ORDER[i])
-  const spansCustomized = DEFAULT_ORDER.some((id) => spans[id] !== DEFAULT_SPANS[id])
-  const heightsCustomized = DEFAULT_ORDER.some((id) => heights[id] !== DEFAULT_HEIGHTS[id])
-  const isCustomized = orderCustomized || spansCustomized || heightsCustomized
+  const isCustomized =
+    gridLayout.length !== DEFAULT_GRID_LAYOUT.length ||
+    gridLayout.some((item) => {
+      const def = DEFAULT_GRID_LAYOUT.find((d) => d.i === item.i)
+      return !def || item.x !== def.x || item.y !== def.y || item.w !== def.w || item.h !== def.h
+    })
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-page">
       <Header selected={selected} onSelect={setSelected} resetLayout={resetLayout} canReset={isCustomized} market={market} symbols={marketSymbolList} hidden={hiddenPanels} onShow={handleShow} />
       <div className="flex-1 overflow-y-auto p-3">
-        <div className="grid grid-cols-12 gap-3" style={{ gridAutoRows: `${ROW_UNIT - 12}px` }}>
-          {order.map((id) => {
+        <TerminalGrid
+          layout={gridLayout}
+          cols={GRID_COLS}
+          rowHeight={GRID_ROW_H}
+          margin={[12, 12]}
+          containerPadding={[0, 0]}
+          draggableHandle=".fab-panel-handle"
+          compactType="vertical"
+          isDraggable
+          isResizable
+          resizeHandles={['s', 'e', 'se']}
+          isBounded={false}
+          onLayoutChange={(l: RGLLayout) => setGridLayout([...l])}
+        >
+          {gridLayout.map((item) => {
+            const id = item.i as PanelId
             const def = panels[id]
+            if (!def) return null
             return (
-              <DraggablePanel
-                key={def.id}
-                id={def.id}
-                span={spans[def.id]}
-                rows={heights[def.id]}
-                draggingId={draggingId}
-                overId={overId}
-                onDragStartPanel={setDraggingId}
-                onDragOverPanel={setOverId}
-                onDropPanel={handleDrop}
-                onDragEndPanel={() => {
-                  setDraggingId(null)
-                  setOverId(null)
-                }}
-                onResizeSpan={handleResizeSpan}
-                onResizeRows={handleResizeRows}
-                onToggleFullWidth={handleToggleFullWidth}
-                onTearOut={popOut}
-                onHide={handleHide}
-                highlight={flashId === def.id}
-              >
-                {def.render()}
-              </DraggablePanel>
+              <div key={id}>
+                <PanelCard id={id} highlight={flashId === id} onTearOut={popOut} onHide={handleHide}>
+                  {def.render()}
+                </PanelCard>
+              </div>
             )
           })}
-        </div>
+        </TerminalGrid>
       </div>
       <HotkeyBar onTrigger={runHotkey} />
       <TickerTape tick={tick} />

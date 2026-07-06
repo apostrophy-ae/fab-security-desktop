@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.1.8
+
+- **Free 2D panel layout** — graph panels now use a proper grid engine (react-grid-layout). Drag any panel to any position, resize from any edge. Nothing moves unless you move it — no automatic reshuffling.
+- **New default layout** — Indices is now 3 rows tall with Sector Performance stacked directly below it, eliminating the blank space in the left column.
+
 ## v3.1.7
 
 - **Stable panel layout when resizing** — resizing a panel's height no longer causes other panels to jump or reorganise. Panels stay in their defined order; only the resized panel changes size.
