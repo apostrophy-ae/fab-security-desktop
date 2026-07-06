@@ -1,5 +1,11 @@
 # Changelog
 
+## v3.3.1
+
+- **Deeper visual polish on Order Placement** — client cards gain a circular initials avatar with a blue glow, gradient dark header, larger bold name, and a ringed SIF badge. Available balance becomes a two-stat bar (balance + CASA side-by-side in large type). Buy/Sell panel headers are taller with gradient fills and bold tracked uppercase labels. Portfolio section has a gradient header strip. Market Watch stock quote card uses a blue-tinted border with a soft glow. Active client tabs get a subtle blue inner-top highlight.
+- **Deeper visual polish on Order Placement AI** — all section cards gain a layered shadow and inset top glow. AI transcript messages are bordered blue-tinted pills; Broker bubbles use a blue gradient ring; Client bubbles use a subtle white ring on dark. The Place order button pulses blue when ready. Verified client header gets a green gradient wash. Connecting state shows an animated pulse dot.
+- **Fixed CI: macOS runner pinned to macos-15** — `macos-latest` migrated to macOS 26 on June 15 2026, breaking the Tauri build. Runner is now pinned to `macos-15`; step conditions updated to `contains(matrix.platform, 'macos')` so they survive future runner label changes.
+
 ## v3.3.0
 
 - **Order Placement — distinct "Precision Trading Terminal" identity** — a branded `ORDER PLACEMENT` label with a blue vertical accent bar appears in the toolbar; the toolbar itself uses a deeper, dedicated background. Market Watch panel gains a blue top stripe and a live data indicator dot. Each client section gets a solid blue left-edge accent bar. The available balance area has a subtle blue tint, reinforcing the precision-desk feel.
