@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.1.9
+
+- **Fixed in-app update on Intel Mac** — the update check now reliably finds the Intel Mac build. Both Mac builds are generated in the same CI job so they always both appear in the update file.
+
 ## v3.1.8
 
 - **Free 2D panel layout** — graph panels now use a proper grid engine (react-grid-layout). Drag any panel to any position, resize from any edge. Nothing moves unless you move it — no automatic reshuffling.

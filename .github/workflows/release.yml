@@ -5,6 +5,9 @@ name: Release
 #
 # Trigger it by pushing a version tag (e.g. `git tag v0.1.0 && git push --tags`)
 # or manually from the Actions tab (Run workflow).
+#
+# NOTE: Both Mac targets run in a SINGLE job (sequentially) so they can
+# merge into one latest.json without a race condition.
 
 on:
   push:
@@ -20,14 +23,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest      # Apple Silicon (M-series)
-            args: '--target aarch64-apple-darwin'
-          - platform: macos-latest      # Intel Macs
-            args: '--target x86_64-apple-darwin'
+          - platform: macos-latest      # Builds ARM + Intel sequentially (no race)
           - platform: ubuntu-22.04
-            args: ''
           - platform: windows-latest
-            args: ''
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -62,11 +60,15 @@ jobs:
           echo "$NOTES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Build & release
+      # ── macOS: build ARM first, then Intel, sequentially in the same job ──
+      # This guarantees both platform entries land in latest.json without
+      # a race condition (parallel jobs would overwrite each other's entry).
+
+      - name: Build & release (Apple Silicon)
+        if: matrix.platform == 'macos-latest'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Sign the update artifacts so installed apps trust the update.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
@@ -75,4 +77,51 @@ jobs:
           releaseBody: ${{ steps.changelog.outputs.notes }}
           releaseDraft: false
           prerelease: false
-          args: ${{ matrix.args }}
+          args: '--target aarch64-apple-darwin'
+
+      - name: Build & release (Intel Mac)
+        if: matrix.platform == 'macos-latest'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'FAB Trade v__VERSION__'
+          releaseBody: ${{ steps.changelog.outputs.notes }}
+          releaseDraft: false
+          prerelease: false
+          args: '--target x86_64-apple-darwin'
+
+      # ── Linux / Windows: single build step ───────────────────────────────
+
+      - name: Build & release (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'FAB Trade v__VERSION__'
+          releaseBody: ${{ steps.changelog.outputs.notes }}
+          releaseDraft: false
+          prerelease: false
+          args: ''
+
+      - name: Build & release (Windows)
+        if: matrix.platform == 'windows-latest'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'FAB Trade v__VERSION__'
+          releaseBody: ${{ steps.changelog.outputs.notes }}
+          releaseDraft: false
+          prerelease: false
+          args: ''
