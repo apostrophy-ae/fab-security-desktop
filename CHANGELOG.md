@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.2.7
+
+- **Fixed blank scroll space — actual root cause found** — the resize handles on each panel (n/s/e/w edges) were being rotated 45°–135° by the default react-resizable CSS. A 14px-tall handle that's 1200px wide, rotated 45°, has an 850px bounding box that sticks far below the grid. This inflated the grid's scroll height from ~1944px to ~2515px — the ~570px difference was the blank space. Fixed by forcing `transform: none` and correct positioning with `!important` (needed because the library CSS loads after our styles in Vite's bundle).
+
 ## v3.2.6
 
 - **Fixed blank scroll space below Time & Sales (root cause)** — the saved layout was loaded as-is, without compacting. If panels had been dragged so that Time & Sales sat a few rows below the panels above it, those empty rows were real grid height (invisible but scrollable), and making Time & Sales taller only extended below the gap rather than filling it. Now the layout is compacted on every load — all gaps are closed before the grid renders. Any unknown panel IDs in a saved layout (which inflate grid height with no visible content) are also stripped on load.

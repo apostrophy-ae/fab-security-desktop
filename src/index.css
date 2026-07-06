@@ -148,8 +148,12 @@ body {
 }
 
 /* ── Edge handles — wide grab zone, slim centered pill ────────────────── */
+/* !important on transform is required — react-resizable's default CSS applies
+   diagonal rotations (rotate(315deg) etc.) to these handles, which makes a
+   14px-tall × full-width element balloon to hundreds of pixels when rotated,
+   overflowing the grid container and inflating scroll height. */
 .react-grid-item > .react-resizable-handle.react-resizable-handle-s {
-  left: 0; width: 100%; height: 14px; bottom: 0; cursor: s-resize; transform: none;
+  left: 0 !important; width: 100% !important; height: 14px !important; bottom: 0 !important; top: auto !important; cursor: s-resize; transform: none !important;
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-s::after {
   content: ''; position: absolute;
@@ -160,7 +164,7 @@ body {
 .react-grid-item > .react-resizable-handle.react-resizable-handle-s:hover::after { background: #0062ff; width: 56px; }
 
 .react-grid-item > .react-resizable-handle.react-resizable-handle-n {
-  left: 0; width: 100%; height: 14px; top: 0; cursor: n-resize; transform: none;
+  left: 0 !important; width: 100% !important; height: 14px !important; top: 0 !important; bottom: auto !important; cursor: n-resize; transform: none !important;
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-n::after {
   content: ''; position: absolute;
@@ -171,7 +175,7 @@ body {
 .react-grid-item > .react-resizable-handle.react-resizable-handle-n:hover::after { background: #0062ff; width: 56px; }
 
 .react-grid-item > .react-resizable-handle.react-resizable-handle-e {
-  top: 0; height: 100%; width: 14px; right: 0; cursor: e-resize; transform: none;
+  top: 0 !important; bottom: auto !important; height: 100% !important; width: 14px !important; right: 0 !important; cursor: e-resize; transform: none !important;
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-e::after {
   content: ''; position: absolute;
@@ -182,7 +186,7 @@ body {
 .react-grid-item > .react-resizable-handle.react-resizable-handle-e:hover::after { background: #0062ff; height: 56px; }
 
 .react-grid-item > .react-resizable-handle.react-resizable-handle-w {
-  top: 0; height: 100%; width: 14px; left: 0; cursor: w-resize; transform: none;
+  top: 0 !important; bottom: auto !important; height: 100% !important; width: 14px !important; left: 0 !important; cursor: w-resize; transform: none !important;
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-w::after {
   content: ''; position: absolute;
