@@ -191,12 +191,12 @@ function AdvisoryCard({ ideas, onUse }: { ideas: PitchIdea[]; onUse: (t: string)
           const accent = idea.tone === 'sell' ? 'border-l-down' : idea.tone === 'buy' ? 'border-l-up' : 'border-l-[#5b9bff]'
           return (
             <li key={i} className={`border-l-2 p-3 ${accent}`}>
-              <div className=”mb-1 flex items-center gap-2”>
+              <div className="mb-1 flex items-center gap-2">
                 <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${chip}`}>{idea.tag}</span>
-                <span className=”text-[12px] font-semibold text-content”>{idea.headline}</span>
+                <span className="text-[12px] font-semibold text-content">{idea.headline}</span>
               </div>
-              <p className=”text-[11px] leading-relaxed text-content-muted”>{idea.why}</p>
-              <button onClick={() => onUse(idea.prefill)} className=”mt-2 flex items-center gap-1.5 rounded-md border border-[rgba(91,155,255,0.3)] bg-[rgba(91,155,255,0.08)] px-2.5 py-1 text-[10px] font-semibold text-[#7ab0ff] hover:bg-[rgba(91,155,255,0.14)]”><Sparkle className=”size-3” /> Use this pitch</button>
+              <p className="text-[11px] leading-relaxed text-content-muted">{idea.why}</p>
+              <button onClick={() => onUse(idea.prefill)} className="mt-2 flex items-center gap-1.5 rounded-md border border-[rgba(91,155,255,0.3)] bg-[rgba(91,155,255,0.08)] px-2.5 py-1 text-[10px] font-semibold text-[#7ab0ff] hover:bg-[rgba(91,155,255,0.14)]"><Sparkle className="size-3" /> Use this pitch</button>
             </li>
           )
         })}
