@@ -498,3 +498,15 @@ export const CASH_MOVEMENTS: CashMovement[] = [
   { date: '10 Feb 2025', type: 'Withdrawal', reference: 'WDR-30021', amount: -150_000, currency: 'AED', status: 'Pending' },
   { date: '09 Feb 2025', type: 'Fee', reference: 'FEE-90112', amount: -1_240, currency: 'AED', status: 'Posted' },
 ]
+
+/** High-liquidity blue-chip names that should appear first in Buy suggestions. */
+export const BLUE_CHIPS = ['EMAAR', 'EMIRATESNBD', 'DIB', 'DEWA', 'SALIK', 'DAMAC', 'DU', 'TABREED', 'ALDAR', 'FAB', 'ADCB', 'IHC']
+
+/** Sort a stock list so blue-chip names come first, niche names last. */
+export function bluechipFirst(stocks: string[]): string[] {
+  const inBoth = stocks.filter((s) => BLUE_CHIPS.includes(s))
+  const blueOnly = BLUE_CHIPS.filter((s) => !stocks.includes(s))
+  const niche = stocks.filter((s) => !BLUE_CHIPS.includes(s))
+  return [...inBoth, ...blueOnly, ...niche]
+}
+

@@ -97,7 +97,7 @@ export function Button({
     default: 'border border-border-dark bg-[#1f2226] text-content hover:bg-[#262a2f]',
     primary: 'bg-action text-white hover:bg-[#1d72ff]',
     ghost: 'text-content-muted hover:bg-[rgba(255,255,255,0.06)] hover:text-content',
-    buy: 'bg-[rgba(36,161,72,0.16)] text-up border border-[rgba(47,208,122,0.4)] hover:bg-[rgba(36,161,72,0.26)]',
+    buy: 'bg-[rgba(0,98,255,0.16)] text-[#5b9bff] border border-[rgba(0,98,255,0.4)] hover:bg-[rgba(0,98,255,0.26)]',
     sell: 'bg-[rgba(193,8,11,0.16)] text-down border border-[rgba(255,107,114,0.4)] hover:bg-[rgba(193,8,11,0.26)]',
   }
   const sizes = { sm: 'h-7 px-2.5 text-[12px]', md: 'h-8 px-3.5 text-[13px]' }

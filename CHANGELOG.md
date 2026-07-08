@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.4.0
+
+- **Branding — FAB x Trade** — the product is now consistently named "FAB x Trade" (with a blue `x` accent) across the title bar, login screen, app window, updater dialog, and HTML page title. The old "LC · PeakPerf desk" subtitle is removed.
+- **Order Placement AI — Wishlist** — brokers can now add any stock to a per-client wishlist with a target price and quantity. When the live price reaches the target, the AI transcript fires an alert automatically. A "Confirm & place" button on each triggered item lets the broker execute immediately. Wishlist items persist for the session and can be removed individually.
+- **Order Placement AI — Wishlist demo call** — a new gold bell-icon demo call ("Wishlist call") is available alongside the existing demo calls. It scripted a client asking to wishlist a stock at the current live price, demonstrating the full alert-to-execution flow in one run.
+- **Order Placement AI — Blue-chip suggestions** — the "Add line" quick-picks and the initial buy line now prioritise blue-chip stocks (EMAAR, DIB, EMIRATESNBD, DEWA, SALIK, DAMAC, DU, TABREED, ALDAR, FAB, ADCB, IHC) so high-value names always appear first and lower-tier names like TALABAT are not mixed in.
+- **Order Placement (Manual) — Blue-chip suggestions** — the same blue-chip ordering applies to the manual Order Placement buy panel: the default buy line and the symbol quick-add strip both lead with the most important names.
+- **Order Placement — Buy button colour** — the Buy button is now blue (matching the action accent colour) instead of green, for visual consistency with the rest of the FAB design language.
+- **ADX / DFM windows — no main navigation** — opening the Abu Dhabi Securities or Dubai Financial Market workspace as a separate window now renders a clean standalone workspace with no main app navigation (no logo, tab bar, or sidebar). The window shows just the workspace content.
+- **ADX / DFM windows — Detailed ⇄ Graph toggle** — the standalone workspace windows now include the Detailed / Graph mode switcher bar at the top. Graph mode shows the full FabTerminal chart view; Detailed mode shows the Market Watch overview (indices + full market table + watchlist panel). The F11 shortcut and an F-key bar (F2 Buy, F3 Sell, F11 Switch) are wired in the Detailed view.
+
 ## v3.3.7
 
 - **Order Placement (Manual) — Sparkline gradient fill** — the area beneath the MarketWatch sparkline chart now fills with a semi-transparent gradient (green for up, red for down) that fades to transparent at the bottom, giving the chart depth and direction at a glance.

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, PointerEvent as ReactPointerEvent } from 'react'
-import { FULL_MARKET, fmtPrice, fmtInt, fmtPct } from '../data'
+import { FULL_MARKET, fmtPrice, fmtInt, fmtPct, bluechipFirst, BLUE_CHIPS } from '../data'
 import { DESK_CUSTOMERS, findCustomer } from '../deskData'
 import type { DeskCustomer } from '../deskData'
 import { usePrices } from '../simData'
@@ -21,6 +21,7 @@ const fmtMoney = (n: number) => 'AED ' + Math.round(n).toLocaleString('en-US')
 
 type Side = 'buy' | 'sell'
 interface OrderLine { id: number; side: Side; symbol: string; qty: number }
+interface WishlistItem { id: number; symbol: string; qty: number; targetPrice: number }
 type CheckTone = 'pass' | 'warn' | 'block' | 'info'
 
 // ── Little AI mark ───────────────────────────────────────────────────────────
@@ -321,9 +322,13 @@ function VerifyAnimation({ customer }: { customer: DeskCustomer }) {
 }
 
 // ── Client column: CIF search + verify + snapshot ────────────────────────────
-function ClientColumn({ client, onOpen, verifying, onUseIdea, narrow, showAdvisory, ideas = [], isVip, onToggleVip }: { client: DeskCustomer | null; onOpen: (c: DeskCustomer) => void; verifying: DeskCustomer | null; onUseIdea?: (text: string) => void; narrow?: boolean; showAdvisory?: boolean; ideas?: PitchIdea[]; isVip: (c: DeskCustomer) => boolean; onToggleVip: (c: DeskCustomer) => void }) {
+function ClientColumn({ client, onOpen, verifying, onUseIdea, narrow, showAdvisory, ideas = [], isVip, onToggleVip, wishlist = [], onAddToWishlist, onRemoveFromWishlist, onConfirmWishlist }: { client: DeskCustomer | null; onOpen: (c: DeskCustomer) => void; verifying: DeskCustomer | null; onUseIdea?: (text: string) => void; narrow?: boolean; showAdvisory?: boolean; ideas?: PitchIdea[]; isVip: (c: DeskCustomer) => boolean; onToggleVip: (c: DeskCustomer) => void; wishlist?: WishlistItem[]; onAddToWishlist?: (symbol: string, targetPrice: number, qty: number) => void; onRemoveFromWishlist?: (id: number) => void; onConfirmWishlist?: (item: WishlistItem) => void }) {
   const [cif, setCif] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [wlOpen, setWlOpen] = useState(false)
+  const [wlSym, setWlSym] = useState(BLUE_CHIPS[0])
+  const [wlTarget, setWlTarget] = useState('')
+  const [wlQty, setWlQty] = useState('10000')
   const price = usePrices()
   const matches = useMemo(() => {
     const q = cif.trim().toLowerCase()
@@ -442,6 +447,84 @@ function ClientColumn({ client, onOpen, verifying, onUseIdea, narrow, showAdviso
             </div>
           </div>
 
+          {/* Wishlist — price-target alerts per client */}
+          <div className="rounded-xl border border-[rgba(240,185,11,0.25)] bg-[#0c0f1a] shadow-[0_0_0_1px_rgba(240,185,11,0.04),0_8px_32px_rgba(0,0,0,0.4)]">
+            <div className="flex items-center justify-between border-b border-[rgba(240,185,11,0.15)] px-3 py-2.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#f0c33b]">
+                <span>🔔</span> Wishlist
+                {wishlist.length > 0 && <span className="ml-1 rounded-full bg-[rgba(240,185,11,0.2)] px-1.5 py-px text-[10px] font-bold">{wishlist.length}</span>}
+              </div>
+              <button onClick={() => setWlOpen((o) => !o)} className="rounded px-2 py-0.5 text-[10px] font-semibold text-[#f0c33b] ring-1 ring-[rgba(240,185,11,0.3)] hover:bg-[rgba(240,185,11,0.1)] transition-colors">
+                {wlOpen ? 'Cancel' : '+ Add target'}
+              </button>
+            </div>
+
+            {wlOpen && (
+              <div className="border-b border-[rgba(240,185,11,0.12)] bg-[rgba(240,185,11,0.04)] p-2.5 flex flex-wrap gap-1.5 items-end">
+                <select value={wlSym} onChange={(e) => { setWlSym(e.target.value); setWlTarget(String((price(e.target.value)?.last ?? 0).toFixed(4))) }}
+                  className="h-8 flex-1 min-w-[90px] rounded border border-[rgba(240,185,11,0.25)] bg-[#0b0e15] px-2 text-[12px] text-content outline-none focus:border-[#f0c33b]">
+                  {FULL_MARKET.map((s) => <option key={s.symbolShortName} value={s.symbolShortName} className="bg-surface">{s.symbolShortName}</option>)}
+                </select>
+                <div className="flex flex-col gap-px">
+                  <span className="text-[9px] text-content-subtle">Target price</span>
+                  <input type="number" value={wlTarget} onChange={(e) => setWlTarget(e.target.value)} placeholder={String((price(wlSym)?.last ?? 0).toFixed(4))}
+                    className="h-8 w-24 rounded border border-[rgba(240,185,11,0.25)] bg-[#0b0e15] px-2 text-right text-[12px] text-content outline-none focus:border-[#f0c33b]" />
+                </div>
+                <div className="flex flex-col gap-px">
+                  <span className="text-[9px] text-content-subtle">Qty</span>
+                  <input type="number" value={wlQty} onChange={(e) => setWlQty(e.target.value)}
+                    className="h-8 w-20 rounded border border-[rgba(240,185,11,0.25)] bg-[#0b0e15] px-2 text-right text-[12px] text-content outline-none focus:border-[#f0c33b]" />
+                </div>
+                <button onClick={() => {
+                  const tp = parseFloat(wlTarget)
+                  const q = parseInt(wlQty, 10)
+                  if (tp > 0 && q > 0) { onAddToWishlist?.(wlSym, tp, q); setWlOpen(false); setWlTarget('') }
+                }} className="h-8 rounded bg-[rgba(240,185,11,0.18)] px-3 text-[11px] font-bold text-[#f0c33b] ring-1 ring-[rgba(240,185,11,0.35)] hover:bg-[rgba(240,185,11,0.28)] transition-colors">
+                  Add
+                </button>
+              </div>
+            )}
+
+            <div className="flex flex-col divide-y divide-[rgba(240,185,11,0.08)]">
+              {wishlist.length === 0 && !wlOpen && (
+                <div className="px-3 py-3 text-[11px] text-content-subtle text-center">No targets set. Add one when a client wants to buy at a lower price.</div>
+              )}
+              {wishlist.map((item) => {
+                const cur = price(item.symbol)?.last ?? 0
+                const triggered = cur > 0 && cur <= item.targetPrice
+                const pctAway = cur > 0 ? ((item.targetPrice - cur) / cur) * 100 : null
+                return (
+                  <div key={item.id} className={`flex items-center gap-2 px-3 py-2.5 transition-all ${triggered ? 'bg-[rgba(47,208,122,0.05)]' : ''}`}
+                    style={triggered ? { boxShadow: 'inset 0 0 0 1px rgba(47,208,122,0.2)' } : {}}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        {triggered && <span className="inline-block size-1.5 rounded-full bg-up shadow-[0_0_6px_#2fd07a] animate-pulse" />}
+                        <span className="text-[12px] font-bold text-content">{item.symbol}</span>
+                        <span className="text-[10px] text-content-muted tabular-nums">{fmtInt(item.qty)} shares</span>
+                      </div>
+                      <div className="mt-0.5 flex items-center gap-2 text-[10px] tabular-nums">
+                        <span className="text-content-subtle">Target <span className="text-[#f0c33b] font-semibold">{fmtPrice(item.targetPrice)}</span></span>
+                        <span className="text-content-subtle">·</span>
+                        <span className={triggered ? 'text-up font-semibold' : 'text-content-muted'}>Now {fmtPrice(cur)}</span>
+                        {!triggered && pctAway !== null && <span className="text-content-subtle">{pctAway > 0 ? `${pctAway.toFixed(1)}% away` : 'Below target'}</span>}
+                        {triggered && <span className="font-bold text-up">✓ Target hit!</span>}
+                      </div>
+                    </div>
+                    {triggered ? (
+                      <button onClick={() => onConfirmWishlist?.(item)}
+                        className="shrink-0 rounded-md bg-[rgba(47,208,122,0.18)] px-2.5 py-1 text-[10px] font-bold text-up ring-1 ring-[rgba(47,208,122,0.35)] hover:bg-[rgba(47,208,122,0.28)] transition-colors whitespace-nowrap"
+                        style={{ boxShadow: '0 0 10px rgba(47,208,122,0.2)' }}>
+                        Confirm &amp; place
+                      </button>
+                    ) : (
+                      <button onClick={() => onRemoveFromWishlist?.(item.id)} className="shrink-0 text-content-muted hover:text-down transition-colors" title="Remove">✕</button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
           {/* Advisory (wide) — only once the client has stated a request. The
               narrow layout renders it below the request in the parent. */}
           {showAdvisory && <AdvisoryCard ideas={ideas} onUse={onUseIdea ?? (() => {})} />}
@@ -479,6 +562,10 @@ export default function OrderPlacementAI({ compact = false, onDock, onOpenWindow
   const [vipMap, setVipMap] = useState<Record<string, boolean>>({})
   const isVip = (c: DeskCustomer) => vipMap[c.sif] ?? c.vip
   const toggleVip = (c: DeskCustomer) => setVipMap((m) => ({ ...m, [c.sif]: !(m[c.sif] ?? c.vip) }))
+  const wishlistId = useRef(0)
+  const [wishlistMap, setWishlistMap] = useState<Record<string, WishlistItem[]>>({})
+  const wishlist = client ? (wishlistMap[client.sif] ?? []) : []
+  const announcedWishlist = useRef<Set<number>>(new Set())
   const [verifying, setVerifying] = useState<DeskCustomer | null>(null)
   const [request, setRequest] = useState(() => snap?.request ?? '')
   const [orders, setOrders] = useState<OrderLine[]>(() => snap?.orders ?? [])
@@ -492,7 +579,27 @@ export default function OrderPlacementAI({ compact = false, onDock, onOpenWindow
   const makeLine = (side: Side, symbol: string, qty: number): OrderLine => ({ id: ++lineId.current, side, symbol, qty })
   const updateLine = (id: number, patch: Partial<OrderLine>) => setOrders((os) => os.map((o) => (o.id === id ? { ...o, ...patch } : o)))
   const removeLine = (id: number) => setOrders((os) => os.filter((o) => o.id !== id))
-  const addLine = (side: Side) => setOrders((os) => [...os, makeLine(side, FULL_MARKET.find((s) => s.lastPrice > 0)!.symbolShortName, 10_000)])
+  const addLine = (side: Side) => setOrders((os) => {
+    const used = new Set(os.map((o) => o.symbol))
+    const next = bluechipFirst(client?.usualStocks ?? []).find((s) => !used.has(s))
+      ?? BLUE_CHIPS.find((s) => !used.has(s))
+      ?? FULL_MARKET.find((s) => s.lastPrice > 0 && !used.has(s.symbolShortName))!.symbolShortName
+    return [...os, makeLine(side, next, 10_000)]
+  })
+  const addToWishlist = (symbol: string, targetPrice: number, qty: number) => {
+    if (!client) return
+    const id = ++wishlistId.current
+    setWishlistMap((m) => ({ ...m, [client.sif]: [...(m[client.sif] ?? []), { id, symbol, targetPrice, qty }] }))
+  }
+  const removeFromWishlist = (id: number) => {
+    if (!client) return
+    setWishlistMap((m) => ({ ...m, [client.sif]: (m[client.sif] ?? []).filter((x) => x.id !== id) }))
+  }
+  const confirmWishlistItem = (item: WishlistItem) => {
+    setOrders((os) => [...os, makeLine('buy', item.symbol, item.qty)])
+    if (!client) return
+    setWishlistMap((m) => ({ ...m, [client.sif]: (m[client.sif] ?? []).filter((x) => x.id !== item.id) }))
+  }
   const [transcript, setTranscript] = useState<{ id: number; speaker: 'Broker' | 'Client' | 'AI'; text: string; time: string }[]>(() => snap?.transcript ?? [])
   const turnId = useRef((snap?.transcript ?? []).reduce((m, t) => Math.max(m, t.id), 0))
   const freshTurnIds = useRef<Set<number>>(new Set()) // turns added this session (should animate)
@@ -513,6 +620,18 @@ export default function OrderPlacementAI({ compact = false, onDock, onOpenWindow
     freshTurnIds.current.add(id)
     setTranscript((t) => [...t, { id, speaker, text, time: now() }])
   }
+  // Alert the broker via the transcript when a wishlist item hits its target price.
+  useEffect(() => {
+    for (const item of wishlist) {
+      if (announcedWishlist.current.has(item.id)) continue
+      const cur = price(item.symbol)?.last ?? 0
+      if (cur > 0 && cur <= item.targetPrice) {
+        announcedWishlist.current.add(item.id)
+        addTurn('AI', `🔔 Target reached — ${item.symbol} is now at ${fmtPrice(cur)}, at or below client target of ${fmtPrice(item.targetPrice)}. Confirm purchase to add to basket.`)
+      }
+    }
+  }, [price]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Play a scripted exchange, one turn every ~0.9s, so the call feels live. A
   // turn may carry a side-effect (3rd item) that fires when that turn appears —
   // used to reveal the order basket in step with the conversation.
@@ -579,7 +698,7 @@ export default function OrderPlacementAI({ compact = false, onDock, onOpenWindow
   // Demo A — a rebalance the client can comfortably afford (buys + two sells).
   const dictateFunded = () => {
     const c = startDemoCall()
-    const buyable = c.usualStocks.slice(0, 3)
+    const buyable = bluechipFirst(c.usualStocks).slice(0, 3)
     const budget = c.cash * 0.55
     const parts = buyable.map((sym) => makeLine('buy', sym, Math.max(1000, Math.round((budget / buyable.length / (pxOf(sym) || 1)) / 1000) * 1000)))
     // Trim ~40% of up to two holdings — excluding anything we're buying.
@@ -603,7 +722,7 @@ export default function OrderPlacementAI({ compact = false, onDock, onOpenWindow
   // Demo B — a basket that exceeds available cash (AI flags it, needs CASA).
   const dictateShort = () => {
     const c = startDemoCall()
-    const buys = c.usualStocks.slice(0, 3)
+    const buys = bluechipFirst(c.usualStocks).slice(0, 3)
     const target = c.cash + c.casaBalance * 0.4 // over available cash, coverable by CASA
     const parts = buys.map((sym) => makeLine('buy', sym, Math.max(1000, Math.round((target / buys.length / (pxOf(sym) || 1)) / 1000) * 1000)))
     const requestText = parts.map((p) => `${p.side} ${fmtInt(p.qty)} ${p.symbol}`).join(', ')
@@ -621,6 +740,30 @@ export default function OrderPlacementAI({ compact = false, onDock, onOpenWindow
       ['Broker', `Great — I'll move it now and then place the basket.`],
     ])
   }
+  // Demo C — client wants to buy at a lower price; broker adds it to the wishlist,
+  // target is set at the current live price so the alert fires immediately in the demo.
+  const dictateWishlist = () => {
+    const c = startDemoCall()
+    const sym = bluechipFirst(c.usualStocks)[0] ?? BLUE_CHIPS[0]
+    const curPx = pxOf(sym)
+    const targetPx = parseFloat(curPx.toFixed(4))
+    const qty = 50_000
+    const first = c.name.split(' ')[0]
+    playScript([
+      ['Broker', `Good afternoon ${first} — you're through to your desk. How can I help today?`],
+      ['Client', `Hi. I've been watching ${sym} — I like the stock but the price feels a bit stretched right now. If it drops to ${fmtPrice(targetPx)}, I'd want 50,000 shares.`],
+      ['Broker', `Understood. I'll set a price target alert for ${sym} at ${fmtPrice(targetPx)} for 50,000 shares. The moment it triggers, I'll reach out to confirm and place it.`],
+      ['AI', `Wishlist entry created — monitoring ${sym} for a drop to ${fmtPrice(targetPx)}. Alert fires automatically when the market reaches that level.`, () => {
+        setWishlistMap((m) => {
+          const id = ++wishlistId.current
+          return { ...m, [c.sif]: [...(m[c.sif] ?? []), { id, symbol: sym, targetPrice: targetPx, qty }] }
+        })
+      }],
+      ['Client', `Perfect. I'll wait to hear from you.`],
+      ['Broker', `Absolutely — I'll call you the moment it hits. Have a good afternoon.`],
+    ])
+  }
+
   const analyse = () => capture(request)
 
   // Broker moves the shortfall from the client's CASA (after the client agrees).
@@ -759,7 +902,7 @@ export default function OrderPlacementAI({ compact = false, onDock, onOpenWindow
       <div ref={bodyRef} className={`flex min-h-0 flex-1 gap-3 p-3 ${wide ? '' : 'flex-col'}`}>
         {/* Client + order flow. Narrow: scroll together above the pinned transcript. */}
         <div className={wide ? 'contents' : 'flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto'}>
-        <ClientColumn client={client} onOpen={openClient} verifying={verifying} onUseIdea={(t) => setRequest(t)} narrow={!wide} showAdvisory={wide} ideas={ideas} isVip={isVip} onToggleVip={toggleVip} />
+        <ClientColumn client={client} onOpen={openClient} verifying={verifying} onUseIdea={(t) => setRequest(t)} narrow={!wide} showAdvisory={wide} ideas={ideas} isVip={isVip} onToggleVip={toggleVip} wishlist={wishlist} onAddToWishlist={addToWishlist} onRemoveFromWishlist={removeFromWishlist} onConfirmWishlist={confirmWishlistItem} />
 
         {/* AI order flow (center) — below the client column when narrow */}
         <div className={`flex min-w-0 flex-col gap-3 ${wide ? 'min-h-0 flex-1 overflow-y-auto' : 'order-2'}`}>
@@ -789,6 +932,10 @@ export default function OrderPlacementAI({ compact = false, onDock, onOpenWindow
               <button onClick={dictateShort} disabled={!client} title="Simulate a call that needs a CASA top-up" className="flex items-center gap-1.5 rounded-md border border-[rgba(255,170,0,0.35)] bg-[rgba(255,170,0,0.07)] px-2.5 py-1.5 text-[11px] font-semibold text-warning ring-1 ring-[rgba(255,170,0,0.1)] hover:bg-[rgba(255,170,0,0.13)] disabled:opacity-40">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
                 Short funds call
+              </button>
+              <button onClick={dictateWishlist} disabled={!client} title="Simulate a client setting a price-target alert" className="flex items-center gap-1.5 rounded-md border border-[rgba(240,185,11,0.35)] bg-[rgba(240,185,11,0.07)] px-2.5 py-1.5 text-[11px] font-semibold text-[#f0c33b] ring-1 ring-[rgba(240,185,11,0.1)] hover:bg-[rgba(240,185,11,0.13)] disabled:opacity-40">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                Wishlist call
               </button>
             </div>
             {orders.length > 0 && (

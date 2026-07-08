@@ -702,13 +702,12 @@ export default function TradingPlatform() {
   const togglePin = (id: string) =>
     setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, pinned: !t.pinned } : t)))
   const openInWindow = (id: string) => {
-    // Open the tab's market terminal in its own window (handy for a 2nd monitor).
+    // Open the tab's market terminal in its own nav-free window (handy for a 2nd monitor).
     const tab = tabs.find((t) => t.id === id) ?? current
-    const targetTab = tab.market === 'ADX' ? 'adx' : 'dfm'
-    const url = `/trading?tab=${targetTab}`
+    const detachId = tab.market === 'ADX' ? 'workspace-adx' : 'workspace-dfm'
+    const url = `/?detach=${detachId}`
     if ('__TAURI_INTERNALS__' in window) {
-      // Tauri intercepts window.open(); the native window API is the working path.
-      new WebviewWindow(`doc-${targetTab}-${Date.now()}`, {
+      new WebviewWindow(`doc-${detachId}-${Date.now()}`, {
         url,
         title: tab.title,
         width: 1360,
@@ -785,8 +784,8 @@ export default function TradingPlatform() {
     <div className="relative flex h-screen flex-col overflow-hidden bg-page text-content">
       {/* ── Top bar ─────────────────────────────────────────────── */}
       <header className="flex h-12 shrink-0 items-center gap-4 border-b border-border-dark bg-[#0b1b4d] px-4">
-        <Link to="/" className="flex items-center gap-2 text-white" title="Back to FAB eAccess">
-          <span className="text-[15px] font-bold tracking-tight">FAB <span className="text-[#5b9bff]">Trade</span></span>
+        <Link to="/" className="flex items-center gap-2 text-white" title="FAB x Trade">
+          <span className="text-[15px] font-bold tracking-tight">FAB <span className="text-[#5b9bff] font-light">x</span> Trade</span>
         </Link>
         <span className="text-white/30">/</span>
         <span className="text-[13px] font-medium text-white/80">{current.title}</span>

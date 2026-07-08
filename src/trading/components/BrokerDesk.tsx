@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { FULL_MARKET, CANDLES, fmtPrice, fmtInt, fmtPct } from '../data'
+import { FULL_MARKET, CANDLES, fmtPrice, fmtInt, fmtPct, bluechipFirst } from '../data'
 import type { PortfolioPosition } from '../data'
 import { DESK_CUSTOMERS, findCustomer } from '../deskData'
 import type { DeskCustomer } from '../deskData'
@@ -23,6 +23,7 @@ const BLUE = '#0062ff'
 const RED = '#e0383d'
 const fmtMoney = (n: number) => 'AED ' + Math.round(n).toLocaleString('en-US')
 const priceOf = (short: string) => FULL_MARKET.find((s) => s.symbolShortName === short)?.lastPrice ?? 0
+
 
 // ─── Order-placed toast notifications ────────────────────────────────────────
 type ToastTone = 'buy' | 'sell'
@@ -126,7 +127,7 @@ function MarketWatch({ symbol, onPick }: { symbol: string; onPick: (s: string) =
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search symbol… (EMAAR, TALABAT, SALIK)"
+          placeholder="Search symbol… (EMAAR, DIB, SALIK)"
           className="h-9 w-full rounded-md border border-[rgba(0,98,255,0.2)] bg-[#0b0e15] px-3 text-[13px] text-content outline-none focus:border-[#5b9bff]"
         />
         {sel && (
@@ -370,11 +371,10 @@ function SellPanel({ holdings }: { holdings: PortfolioPosition[] }) {
 // ─── One customer widget (portfolio + contact + buy/sell) ────────────────────
 function CustomerPanel({ customer, watchSymbol, onClose, vip, onToggleVip }: { customer: DeskCustomer; watchSymbol: string; onClose: () => void; vip: boolean; onToggleVip: () => void }) {
   // Prefill Buy with the stock the customer trades most — approximated by their
-  // largest holding (e.g. Mahlya → AMANAT). Market Watch selection overrides it.
-  const mostTraded = customer.holdings.length
-    ? customer.holdings.reduce((a, b) => (b.quantity > a.quantity ? b : a)).symbol
-    : undefined
-  const buyDefault = watchSymbol || mostTraded || customer.usualStocks[0] || FULL_MARKET[0].symbolShortName
+  // Prefer the highest-priority blue-chip the customer is associated with.
+  // Market Watch selection overrides this entirely.
+  const suggestions = bluechipFirst(customer.usualStocks)
+  const buyDefault = watchSymbol || suggestions[0] || FULL_MARKET[0].symbolShortName
 
   // Re-value holdings from live/sim prices so the portfolio stays consistent
   // with Market Watch (and moves).
@@ -524,7 +524,7 @@ function CustomerPanel({ customer, watchSymbol, onClose, vip, onToggleVip }: { c
 
         {/* Buy + Sell — below the portfolio, side by side, always open */}
         <div className="flex min-h-[260px] gap-3">
-          <BuyPanel defaultSymbol={buyDefault} suggestions={customer.usualStocks} available={cash} casaAccount={customer.casa} casaBalance={casaBal} onMoveFromCasa={moveFromCasa} />
+          <BuyPanel defaultSymbol={buyDefault} suggestions={suggestions} available={cash} casaAccount={customer.casa} casaBalance={casaBal} onMoveFromCasa={moveFromCasa} />
           <SellPanel holdings={liveHoldings} />
         </div>
       </div>

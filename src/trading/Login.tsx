@@ -58,9 +58,8 @@ export default function Login() {
 
         <div className="relative">
           <div className="text-[26px] font-bold tracking-tight text-white">
-            FAB <span className="text-[#5b9bff]">Trade</span>
+            FAB <span className="text-[#5b9bff] font-light">x</span> Trade
           </div>
-          <div className="mt-1 text-[12px] font-medium uppercase tracking-[0.2em] text-white/50">LC · PeakPerf desk</div>
         </div>
 
         <div className="relative">
@@ -92,7 +91,7 @@ export default function Login() {
         <form onSubmit={submit} className="w-full max-w-[380px]">
           <div className="mb-8 lg:hidden">
             <div className="text-[22px] font-bold tracking-tight">
-              FAB <span className="text-[#5b9bff]">Trade</span>
+              FAB <span className="text-[#5b9bff] font-light">x</span> Trade
             </div>
           </div>
 

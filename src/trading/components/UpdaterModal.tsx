@@ -73,7 +73,7 @@ export default function UpdaterModal({ open, onClose }: { open: boolean; onClose
         {/* Status */}
         <div className="mt-5 min-h-[64px]">
           {phase === 'idle' && (
-            <p className="text-[13px] leading-relaxed text-content-muted">You're all set up. Check whether a newer version of FAB Trade is available.</p>
+            <p className="text-[13px] leading-relaxed text-content-muted">You're all set up. Check whether a newer version of FAB x Trade is available.</p>
           )}
           {phase === 'checking' && (
             <div className="flex items-center gap-2.5 text-[13px] text-content-muted">

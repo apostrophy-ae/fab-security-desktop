@@ -22,7 +22,7 @@ export async function checkForUpdates(options: { silent?: boolean } = {}) {
       // Only surface "you're up to date" when the user asked manually.
       if (!options.silent) {
         await message('You are running the latest version.', {
-          title: 'LC PeakPerf',
+          title: 'FAB x Trade',
           kind: 'info',
         })
       }
