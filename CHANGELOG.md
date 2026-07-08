@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.4.1
+
+- **App icon — FAB logo** — the desktop/dock/taskbar icon is now the real First Abu Dhabi Bank logo (navy blue FAB wordmark with red chevron on white), replacing the generic placeholder. All platform sizes regenerated (macOS ICNS, Windows ICO, Windows Store tiles, PNG variants).
+- **Top nav — removed market dropdown** — the DFM / ADX market selector that was in the top bar has been removed. Markets are opened via the tab bar's "+" button instead, which is the correct entry point.
+
 ## v3.4.0
 
 - **Branding — FAB x Trade** — the product is now consistently named "FAB x Trade" (with a blue `x` accent) across the title bar, login screen, app window, updater dialog, and HTML page title. The old "LC · PeakPerf desk" subtitle is removed.

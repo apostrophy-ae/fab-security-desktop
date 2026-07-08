@@ -807,11 +807,6 @@ export default function TradingPlatform() {
         )}
 
         <div className="ml-auto flex items-center gap-3">
-          {/* The tab's market drives both Graph and Detailed, so this selector
-              is shown for any workspace tab regardless of look. */}
-          {current.kind === 'workspace' && (
-            <MarketTabSelect market={current.market ?? 'DFM'} onChange={(m) => setTabMarket(current.id, m)} />
-          )}
           <LiveStatusPill market={current.kind === 'workspace' ? current.market ?? 'DFM' : undefined} />
           <WorkspaceMenu />
           <div className="flex items-center gap-2 border-l border-white/10 pl-3">
