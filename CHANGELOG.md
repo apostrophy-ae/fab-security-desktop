@@ -1,5 +1,11 @@
 # Changelog
 
+## v3.4.3
+
+- **Branding — TRADE wordmark no longer stretches** — the "TRADE" wordmark in the header logo was rendered as live SVG text using the Barlow Condensed web font loaded from Google's CDN. In the packaged desktop app that font did not reliably load, so it fell back to a wide system font (Arial), making the wordmark look stretched and mismatched. It is now baked in as Barlow Condensed Bold vector outlines (extracted from the real font), so it renders pixel-identical everywhere with zero dependency on any font loading — offline, in every build.
+- **Logo — tighter viewBox** — the logo SVG viewBox is now cropped to the true content bounds, removing ~177px of dead space that the previous fixed-width box carried on the right.
+- **index.html — removed Google Fonts dependency** — the now-unused Barlow Condensed `<link>` and font preconnects were removed from the HTML head.
+
 ## v3.4.2
 
 - **Branding — FAB x Trade wordmark** — the header logo is now a single inline SVG combining the FAB letterforms and red chevron with a "TRADE" wordmark in Barlow Condensed Bold. The SVG viewBox is tight-cropped so the logo fills its container height with no padding.
